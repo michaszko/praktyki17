@@ -110,29 +110,28 @@ public :
    TBranch        *b_Particle_Spin;   //!
    TBranch        *b_Particle_size;   //!
 
-   LHEF(TTree *tree=0);
+   LHEF(char* input, TTree *tree=0);
    virtual ~LHEF();
    virtual Int_t    Cut(Long64_t entry);
    virtual Int_t    GetEntry(Long64_t entry);
    virtual Long64_t LoadTree(Long64_t entry);
    virtual void     Init(TTree *tree);
-   virtual void     Loop();
+   virtual void     Loop(char* output);
    virtual Bool_t   Notify();
    virtual void     Show(Long64_t entry = -1);
-   void Go();
 };
 
 #endif
 
 #ifdef LHEF_cxx
-LHEF::LHEF(TTree *tree) : fChain(0)
+LHEF::LHEF(char* input, TTree *tree) : fChain(0)
 {
 // if parameter tree is not specified (or zero), connect the file
 // used to generate this class and read the Tree.
    if (tree == 0) {
-      TFile *f = (TFile*)gROOT->GetListOfFiles()->FindObject("unweighted_events.root");
+      TFile *f = (TFile*)gROOT->GetListOfFiles()->FindObject(input);
       if (!f || !f->IsOpen()) {
-         f = new TFile("unweighted_events.root");
+         f = new TFile(input);
       }
       f->GetObject("LHEF",tree);
 

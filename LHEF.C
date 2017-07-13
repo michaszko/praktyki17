@@ -4,7 +4,7 @@
 #include <TStyle.h>
 #include <TCanvas.h>
 
-void LHEF::Loop()
+void LHEF::Loop(char* output)
 {
   // Deklaracja wszystki zmiennych
   TStopwatch * watch = new TStopwatch();
@@ -49,7 +49,9 @@ void LHEF::Loop()
 
   TH1F * nn_p = new TH1F("nn_p", "nn_p", 50, 0., 400);
   TH1F * momentum_loss = new TH1F("brakujacy ped", "brakujacy ped", 50, 0., 400);
-  TH1F * all_momentum = new TH1F("all_momentum", "all_momentum", 50, 0., 0.1);
+  TH1F * all_momentum = new TH1F("all_momentum", "all_momentum", 50, 0., 400);
+
+  TH1F * Pdg_id= new TH1F("Pdg_id", "Pdg_id", 30, -15., 15);
 
    if (fChain == 0) return;
 
@@ -488,6 +490,7 @@ void LHEF::Loop()
                               Particle_E[   aelektorn[i] ] );
 
             end_momentum += temp1;
+            Pdg_id->Fill(Particle_PID[  aelektorn[i]  ]);
       }
 
       for (int i = 0; i < elektorn.size(); i++)
@@ -498,6 +501,7 @@ void LHEF::Loop()
                               Particle_E[   elektorn[i] ] );
 
             end_momentum += temp1;
+            Pdg_id->Fill(Particle_PID[  elektorn[i]  ]);
       }
 
       for (int i = 0; i < amion.size(); i++)
@@ -508,6 +512,7 @@ void LHEF::Loop()
                               Particle_E[   amion[i] ] );
 
             end_momentum += temp1;
+            Pdg_id->Fill(Particle_PID[  amion[i]  ]);
       }
 
       for (int i = 0; i < mion.size(); i++)
@@ -518,6 +523,7 @@ void LHEF::Loop()
                               Particle_E[   mion[i] ] );
 
             end_momentum += temp1;
+            Pdg_id->Fill(Particle_PID[  mion[i]  ]);
       }
 
       for (int i = 0; i < jet1.size(); i++)
@@ -528,6 +534,7 @@ void LHEF::Loop()
                               Particle_E[   jet1[i] ] );
 
             end_momentum += temp1;
+            Pdg_id->Fill(Particle_PID[  jet1[i]  ]);
       }
 
       for (int i = 0; i < jet2.size(); i++)
@@ -538,6 +545,7 @@ void LHEF::Loop()
                               Particle_E[   jet2[i] ] );
 
             end_momentum += temp1;
+            Pdg_id->Fill(Particle_PID[  jet2[i]  ]);
       }
 
       for (int i = 0; i < aeneutrino.size(); i++)
@@ -548,6 +556,7 @@ void LHEF::Loop()
                               Particle_E[   aeneutrino[i] ] );
 
             end_momentum += temp1;
+            Pdg_id->Fill(Particle_PID[  aeneutrino[i]  ]);
       }
 
       for (int i = 0; i < mneutrino.size(); i++)
@@ -558,6 +567,7 @@ void LHEF::Loop()
                               Particle_E[   mneutrino[i] ] );
 
             end_momentum += temp1;
+            Pdg_id->Fill(Particle_PID[  mneutrino[i]  ]);
       }
 
       for (int i = 0; i < eneutrino.size(); i++)
@@ -568,6 +578,7 @@ void LHEF::Loop()
                               Particle_E[   eneutrino[i] ] );
 
             end_momentum += temp1;
+            Pdg_id->Fill(Particle_PID[  eneutrino[i]  ]);
       }
 
       for (int i = 0; i < amneutrino.size(); i++)
@@ -578,13 +589,14 @@ void LHEF::Loop()
                               Particle_E[   amneutrino[i] ] );
 
             end_momentum += temp1;
+            Pdg_id->Fill(Particle_PID[  amneutrino[i]  ]);
       }
 
       all_momentum->Fill(end_momentum.Pt());
    }
 
    //Zapisywanie do pliki "Histogramy.root"
-   TFile *f = new TFile("Histogramy.root", "RECREATE");
+   TFile *f = new TFile(output, "RECREATE");
 
    mjj->Write();
    mll->Write();
@@ -612,17 +624,19 @@ void LHEF::Loop()
    momentum_loss->Write();
    all_momentum->Write();
 
+   Pdg_id->Write();
+
    f->Close();
 }
 
-void LHEF()
+void LHEF(char* input, char* output)
 {
   //Dla ROOT 6.x
-  class LHEF a;
+  class LHEF a(input);
 
   //Dla ROOT 5.x
   //LHEF a;
 
-  a.Loop();
+  a.Loop(output);
   new TBrowser;
 }
