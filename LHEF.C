@@ -6,7 +6,6 @@
 
 void LHEF::Loop()
 {
-
   // Deklaracja wszystki zmiennych
   TStopwatch * watch = new TStopwatch();
 
