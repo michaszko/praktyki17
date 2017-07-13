@@ -17,7 +17,7 @@ void LHEF::Loop()
   std::vector<Int_t> jet1, jet2;
   std::vector<Int_t> lepton1, lepton2;
   std::vector<TLorentzVector> W_p, W_n, W_p_hf, W_n_hf;
-  TLorentzVector temp1, temp2, sum;
+  TLorentzVector temp1, temp2, sum, final_momentum, neutrino_momentum, end_momentum;
 
   TLorentzVector *Higgs = new TLorentzVector();
   TVector3 * boost_vector = new TVector3();
@@ -48,6 +48,10 @@ void LHEF::Loop()
 
   TH1F * mH = new TH1F("mH", "mH", 50, 0., 1000);
 
+  TH1F * nn_p = new TH1F("nn_p", "nn_p", 50, 0., 400);
+  TH1F * momentum_loss = new TH1F("brakujacy ped", "brakujacy ped", 50, 0., 400);
+  TH1F * all_momentum = new TH1F("all_momentum", "all_momentum", 50, 0., 0.1);
+
    if (fChain == 0) return;
 
    Long64_t nentries = fChain->GetEntriesFast();
@@ -57,27 +61,27 @@ void LHEF::Loop()
    for (Long64_t jentry=0; jentry<nentries*1;jentry++)
    {
      //Czyszczenie wszystkich wektorów
-     Higgs->Clear();
+     Higgs->SetPxPyPzE(0,0,0,0);
      jet1.clear(); jet2.clear(); lepton1.clear(); lepton2.clear();
      elektorn.clear(); mion.clear(); eneutrino.clear(); mneutrino.clear();
      aelektorn.clear(); amion.clear(); aeneutrino.clear(); amneutrino.clear();
      W_p.clear(); W_n.clear(); W_p_hf.clear(); W_n_hf.clear();
 
       //Zegarek (jeśli działanie programu się przedłuża)
-      // if ( jentry%1000 == 0 )
-      // {
-      //   watch->Stop();
-      //   watch->Print();
-      //   std::cout << jentry << endl;
-      //   watch->Continue();
-      // }
+      if ( jentry%1000 == 0 )
+      {
+        watch->Stop();
+        watch->Print();
+        std::cout << jentry << endl;
+        watch->Continue();
+      }
 
       Long64_t ientry = LoadTree(jentry);
       if (ientry < 0) break;
       nb = fChain->GetEntry(jentry);   nbytes += nb;
       // if (Cut(ientry) < 0) continue;
 
-      /***************************************/
+      /************************************************************************/
       //Pętla po wszystkich particlach w evencie
       for (int i = 0; i < Particle_size; i++)
       {
@@ -136,16 +140,13 @@ void LHEF::Loop()
 
       }
 
-      /**************************************/
+      /************************************************************************/
       //Sprawdzamy czy jest to nasz proces -
       //czyli na wyjściu jest e- i mu+ ALBO e+ i mu-
-      if (elektorn.size() != amion.size() ) continue;
-      else if (aelektorn.size() != mion.size() ) continue;
+      //to jest jeszcze do sprawdzenia
+      if (!(!aelektorn.empty() &&  !mion.empty()  && elektorn.empty() && amion.empty()) || (aelektorn.empty() &&  mion.empty()  && !elektorn.empty() && !amion.empty() ) ) continue;
 
-      //std::cout << Particle_PID[jet1[0]] << "\t" << Particle_PID[jet2[0]] << endl;
-      //std::cout << "\t" << lepton1.size() << "\t" << lepton2.size() << endl;
-
-      /**************************************/
+      /************************************************************************/
       //Rekonstruujemy Higgsa w zależności od procesu
       if ( aelektorn.size() == 1 && eneutrino.size() == 1 && mion.size() == 1 && amneutrino.size() == 1 )
         Higgs->SetPxPyPzE(  Particle_Px[aelektorn[0]] +  Particle_Px[eneutrino[0]] + Particle_Px[mion[0]] + Particle_Px[amneutrino[0]],
@@ -165,7 +166,7 @@ void LHEF::Loop()
       //każdym razem liczyć od nowa
       *boost_vector = -(Higgs->BoostVector());
 
-      /***************************************/
+      /************************************************************************/
 
       //Pętla po wszystkich jetach i antyjetach
       for (int i = 0; i < jet1.size(); i++)
@@ -187,11 +188,11 @@ void LHEF::Loop()
             //Histogram masy inwariantej dwóch jetów
             mjj->Fill(sum.M());
 
-            ///////////////////////////////
+            ////////////////////////////////////////////////////////////////////
             //Delta eta dla jetów
             Deltaeta_j1j2->Fill( abs(Particle_Eta[jet1[i]] - Particle_Eta[jet2[j]]) );
 
-            //////////////////////////////
+            ////////////////////////////////////////////////////////////////////
             //Delta phi dla jetów
             //z cieciami do Pi
             phi = abs(Particle_Phi[jet1[i]] - Particle_Phi[jet2[j]]);
@@ -199,11 +200,11 @@ void LHEF::Loop()
             if (phi < TMath::Pi()) Deltaphi_j1j2->Fill( phi );
             else Deltaphi_j1j2->Fill( 2 * TMath::Pi() - phi );
 
-            //////////////////////////////
+            ////////////////////////////////////////////////////////////////////
             //Eta dla antykwarkow
             if (i == 0) eta_j2->Fill(Particle_Eta[jet2[j]]);
 
-            /////////////////////////////
+            ///////////////////////////////////////////////////////////////////
             //Boostowanie do układu spoczynkowego Higgsa
             if (Higgs == 0) continue;
 
@@ -217,7 +218,7 @@ void LHEF::Loop()
           eta_j1->Fill(Particle_Eta[jet1[i]]);
       }
 
-      /***************************************/
+      /************************************************************************/
       //Pętla po wszystkich leptonach i antyleptonach
       for (int i = 0; i < lepton1.size(); i++)
       {
@@ -241,11 +242,11 @@ void LHEF::Loop()
               // e+ i mu- ALBO e- i mu+ - bo tylko te wybraliśmy
               mll->Fill(sum.M());
 
-              ////////////////////////////////
+              //////////////////////////////////////////////////////////////////
               //Delta eta dla leptonów
               Deltaeta_ll->Fill( abs(Particle_Eta[lepton1[i]] - Particle_Eta[lepton2[j]]) );
 
-              ///////////////////////////////
+              //////////////////////////////////////////////////////////////////
               //Delta phi dla leptonów
               //z cieciami do Pi
               phi = abs(Particle_Phi[lepton1[i]] - Particle_Phi[lepton2[j]]);
@@ -253,11 +254,11 @@ void LHEF::Loop()
               if (phi < TMath::Pi()) Deltaphi_ll->Fill( phi );
               else Deltaphi_ll->Fill( (2 * TMath::Pi() - phi) );
 
-              ///////////////////////////////
+              //////////////////////////////////////////////////////////////////
               //Eta dla antyleptonów
               if (i == 0) eta_l2->Fill(Particle_Eta[lepton2[j]]);
 
-              ///////////////////////////////
+              //////////////////////////////////////////////////////////////////
 
               if (Higgs == 0) continue;
               //Boostowanie do układu spoczynkowego Higgsa
@@ -271,7 +272,7 @@ void LHEF::Loop()
           eta_l1->Fill(Particle_Eta[lepton1[i]]);
       }
 
-      /***************************************/
+      /************************************************************************/
       //Pętla po wszystkich e+ i ve
       //będziemy z tego odtwarzać W+
       for (int i = 0; i < aelektorn.size(); i++)
@@ -293,7 +294,7 @@ void LHEF::Loop()
               //tak naprawdę czteropęd W+
               W_p.push_back(sum);
 
-              ///////////////////////////////////
+              /////////////////////////////////////////////////////////////////
               //Boostujemy do ukladu spoczynkowego Higgsa
               if (Higgs == 0) continue;
 
@@ -307,7 +308,7 @@ void LHEF::Loop()
           }
       }
 
-      /***************************************/
+      /************************************************************************/
       //Pętla po wszystkich mu- i vm~
       //będziemy z tego odtwarzać W+
       for (int i = 0; i < mion.size(); i++)
@@ -328,7 +329,7 @@ void LHEF::Loop()
               //tak naprawdę czteropęd W-
               W_n.push_back(sum);
 
-              ///////////////////////////////////
+              /////////////////////////////////////////////////////////////////
               //Boostujemy do ukladu spoczynkowego Higgsa
               if (Higgs == 0) continue;
 
@@ -343,7 +344,7 @@ void LHEF::Loop()
           }
       }
 
-      /***************************************/
+      /************************************************************************/
       //Pętla po bozonach W+ i W-
       for (int i = 0; i < W_n.size(); i++)
       {
@@ -356,7 +357,7 @@ void LHEF::Loop()
               if (phi < TMath::Pi()) Deltaphi_ww->Fill( phi );
               else Deltaphi_ww->Fill( 2 * TMath::Pi() - phi );
 
-              ////////////////////////////////////////////////
+              /////////////////////////////////////////////////////////////////
               //Różnica phi między nimi (po booscie)
               phi = abs(W_n_hf[i].Phi() - W_p_hf[j].Phi());
 
@@ -365,6 +366,222 @@ void LHEF::Loop()
               else Deltaphi_ww_hf->Fill( 2 * TMath::Pi() - phi );
           }
       }
+
+      /***********************************************************************/
+      //Pęd poprzeczny neutrin
+        neutrino_momentum.SetPxPyPzE(0,0,0,0);
+
+        for (int i = 0; i < aeneutrino.size(); i++)
+        {
+              temp1.SetPxPyPzE( Particle_Px[  aeneutrino[i] ],
+                                Particle_Py[  aeneutrino[i] ],
+                                Particle_Pz[  aeneutrino[i] ],
+                                Particle_E[   aeneutrino[i] ] );
+
+              neutrino_momentum += temp1;
+        }
+
+        for (int i = 0; i < mneutrino.size(); i++)
+        {
+              temp1.SetPxPyPzE( Particle_Px[  mneutrino[i] ],
+                                Particle_Py[  mneutrino[i] ],
+                                Particle_Pz[  mneutrino[i] ],
+                                Particle_E[   mneutrino[i] ] );
+
+              neutrino_momentum += temp1;
+        }
+
+        for (int i = 0; i < eneutrino.size(); i++)
+        {
+              temp1.SetPxPyPzE( Particle_Px[  eneutrino[i] ],
+                                Particle_Py[  eneutrino[i] ],
+                                Particle_Pz[  eneutrino[i] ],
+                                Particle_E[   eneutrino[i] ] );
+
+              neutrino_momentum += temp1;
+        }
+
+        for (int i = 0; i < amneutrino.size(); i++)
+        {
+              temp1.SetPxPyPzE( Particle_Px[  amneutrino[i] ],
+                                Particle_Py[  amneutrino[i] ],
+                                Particle_Pz[  amneutrino[i] ],
+                                Particle_E[   amneutrino[i] ] );
+
+              neutrino_momentum += temp1;
+        }
+
+        nn_p->Fill(neutrino_momentum.Pt());
+
+      /************************************************************************/
+      //Pęd poprzeczny wszystkich mozliwych do detekcji czastek
+      final_momentum.SetPxPyPzE(0,0,0,0);
+
+      for (int i = 0; i < aelektorn.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  aelektorn[i] ],
+                              Particle_Py[  aelektorn[i] ],
+                              Particle_Pz[  aelektorn[i] ],
+                              Particle_E[   aelektorn[i] ] );
+
+            final_momentum += temp1;
+      }
+
+      for (int i = 0; i < elektorn.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  elektorn[i] ],
+                              Particle_Py[  elektorn[i] ],
+                              Particle_Pz[  elektorn[i] ],
+                              Particle_E[   elektorn[i] ] );
+
+            final_momentum += temp1;
+      }
+
+      for (int i = 0; i < amion.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  amion[i] ],
+                              Particle_Py[  amion[i] ],
+                              Particle_Pz[  amion[i] ],
+                              Particle_E[   amion[i] ] );
+
+            final_momentum += temp1;
+      }
+
+      for (int i = 0; i < mion.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  mion[i] ],
+                              Particle_Py[  mion[i] ],
+                              Particle_Pz[  mion[i] ],
+                              Particle_E[   mion[i] ] );
+
+            final_momentum += temp1;
+      }
+
+      for (int i = 0; i < jet1.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  jet1[i] ],
+                              Particle_Py[  jet1[i] ],
+                              Particle_Pz[  jet1[i] ],
+                              Particle_E[   jet1[i] ] );
+
+            final_momentum += temp1;
+      }
+
+      for (int i = 0; i < jet2.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  jet2[i] ],
+                              Particle_Py[  jet2[i] ],
+                              Particle_Pz[  jet2[i] ],
+                              Particle_E[   jet2[i] ] );
+
+            final_momentum += temp1;
+      }
+
+      momentum_loss->Fill(final_momentum.Pt());
+
+      /************************************************************************/
+      //Pęd wszystkich cząstek (powinien się równać 0)
+      for (int i = 0; i < aelektorn.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  aelektorn[i] ],
+                              Particle_Py[  aelektorn[i] ],
+                              Particle_Pz[  aelektorn[i] ],
+                              Particle_E[   aelektorn[i] ] );
+
+            end_momentum += temp1;
+      }
+
+      for (int i = 0; i < elektorn.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  elektorn[i] ],
+                              Particle_Py[  elektorn[i] ],
+                              Particle_Pz[  elektorn[i] ],
+                              Particle_E[   elektorn[i] ] );
+
+            end_momentum += temp1;
+      }
+
+      for (int i = 0; i < amion.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  amion[i] ],
+                              Particle_Py[  amion[i] ],
+                              Particle_Pz[  amion[i] ],
+                              Particle_E[   amion[i] ] );
+
+            end_momentum += temp1;
+      }
+
+      for (int i = 0; i < mion.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  mion[i] ],
+                              Particle_Py[  mion[i] ],
+                              Particle_Pz[  mion[i] ],
+                              Particle_E[   mion[i] ] );
+
+            end_momentum += temp1;
+      }
+
+      for (int i = 0; i < jet1.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  jet1[i] ],
+                              Particle_Py[  jet1[i] ],
+                              Particle_Pz[  jet1[i] ],
+                              Particle_E[   jet1[i] ] );
+
+            end_momentum += temp1;
+      }
+
+      for (int i = 0; i < jet2.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  jet2[i] ],
+                              Particle_Py[  jet2[i] ],
+                              Particle_Pz[  jet2[i] ],
+                              Particle_E[   jet2[i] ] );
+
+            end_momentum += temp1;
+      }
+
+      for (int i = 0; i < aeneutrino.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  aeneutrino[i] ],
+                              Particle_Py[  aeneutrino[i] ],
+                              Particle_Pz[  aeneutrino[i] ],
+                              Particle_E[   aeneutrino[i] ] );
+
+            end_momentum += temp1;
+      }
+
+      for (int i = 0; i < mneutrino.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  mneutrino[i] ],
+                              Particle_Py[  mneutrino[i] ],
+                              Particle_Pz[  mneutrino[i] ],
+                              Particle_E[   mneutrino[i] ] );
+
+            end_momentum += temp1;
+      }
+
+      for (int i = 0; i < eneutrino.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  eneutrino[i] ],
+                              Particle_Py[  eneutrino[i] ],
+                              Particle_Pz[  eneutrino[i] ],
+                              Particle_E[   eneutrino[i] ] );
+
+            end_momentum += temp1;
+      }
+
+      for (int i = 0; i < amneutrino.size(); i++)
+      {
+            temp1.SetPxPyPzE( Particle_Px[  amneutrino[i] ],
+                              Particle_Py[  amneutrino[i] ],
+                              Particle_Pz[  amneutrino[i] ],
+                              Particle_E[   amneutrino[i] ] );
+
+            end_momentum += temp1;
+      }
+
+      all_momentum->Fill(end_momentum.Pt());
    }
 
    //Zapisywanie do pliki "Histogramy.root"
@@ -391,6 +608,10 @@ void LHEF::Loop()
    Deltaphi_ww_hf->Write();
 
    mH->Write();
+
+   nn_p->Write();
+   momentum_loss->Write();
+   all_momentum->Write();
 
    f->Close();
 }
