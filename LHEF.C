@@ -22,11 +22,6 @@ void LHEF::Loop()
   TLorentzVector *Higgs = new TLorentzVector();
   TVector3 * boost_vector = new TVector3();
 
-  // jet1.clear(); jet2.clear(); lepton1.clear(); lepton2.clear();
-  // elektorn.clear(); mion.clear(); eneutrino.clear(); mneutrino.clear();
-  // aelektorn.clear(); amion.clear(); aeneutrino.clear(); amneutrino.clear();
-
-
   TH1F * mjj = new TH1F("mjj", "mjj", 50, 0., 1000.);
   TH1F * mll = new TH1F("mll", "mll", 50, 0., 1000);
 
