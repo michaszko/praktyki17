@@ -10,14 +10,19 @@ void LHEF::Loop(char* output)
   TStopwatch * watch = new TStopwatch();
 
   Double_t phi;
+  Double_t M_h, M_vv, M_fix_2, M_fix_4_, p_vv_z;
+
 
   std::vector<Int_t> elektorn, mion, eneutrino, mneutrino;
   std::vector<Int_t> aelektorn, amion, aeneutrino, amneutrino;
   std::vector<Int_t> jet1, jet2;
   std::vector<Int_t> lepton1, lepton2;
+
   std::vector<TLorentzVector> W_p, W_n, W_p_hf, W_n_hf;
   TLorentzVector temp1, temp2, sum, final_momentum, neutrino_momentum, end_momentum;
 
+  TLorentzVector *ll = new TLorentzVector();
+  TLorentzVector *jj = new TLorentzVector();
   TLorentzVector *Higgs = new TLorentzVector();
   TVector3 * boost_vector = new TVector3();
 
@@ -47,13 +52,15 @@ void LHEF::Loop(char* output)
 
   TH1F * mH = new TH1F("mH", "mH", 50, 0., 1000);
 
-  TH1F * nn_p = new TH1F("nn_p", "nn_p", 50, 0., 400);
-  TH1F * momentum_loss = new TH1F("brakujacy ped", "brakujacy ped", 50, 0., 400);
+  TH1F * nn_p = new TH1F("nn_p", "neutrinos_momentum", 50, 0., 400);
+  TH1F * non_nn_p = new TH1F("non_nn_p", "non-neutrinos_momentum", 50, 0., 400);
   TH1F * all_momentum = new TH1F("all_momentum", "all_momentum", 50, 0., 400);
 
-  TH1F * Pdg_id= new TH1F("Pdg_id", "Pdg_id", 30, -15., 15);
+  TH1F * Pdg_id = new TH1F("Pdg_id", "Pdg_id", 30, -15., 15);
 
-   if (fChain == 0) return;
+  TH1F * p_vv_z_h = new TH1F("p_vv_z", "p_vv_z", 50, -1000., 1000);
+
+  if (fChain == 0) return;
 
    Long64_t nentries = fChain->GetEntriesFast();
    Long64_t nbytes = 0, nb = 0;
@@ -62,7 +69,7 @@ void LHEF::Loop(char* output)
    for (Long64_t jentry=0; jentry<nentries*1;jentry++)
    {
      //Czyszczenie wszystkich wektorów
-     Higgs->SetPxPyPzE(0,0,0,0);
+     Higgs->SetPxPyPzE(0,0,0,0); ll->SetPxPyPzE(0,0,0,0); jj->SetPxPyPzE(0,0,0,0);
      jet1.clear(); jet2.clear(); lepton1.clear(); lepton2.clear();
      elektorn.clear(); mion.clear(); eneutrino.clear(); mneutrino.clear();
      aelektorn.clear(); amion.clear(); aeneutrino.clear(); amneutrino.clear();
@@ -127,16 +134,16 @@ void LHEF::Loop(char* output)
             break;
           case -11:
             aelektorn.push_back(i);
-          break;
+            break;
           case -12:
             aeneutrino.push_back(i);
-          break;
+            break;
           case -13:
             amion.push_back(i);
-          break;
+            break;
           case -14:
             amneutrino.push_back(i);
-          break;
+            break;
         }
 
       }
@@ -144,8 +151,9 @@ void LHEF::Loop(char* output)
       /************************************************************************/
       //Sprawdzamy czy jest to nasz proces -
       //czyli na wyjściu jest e- i mu+ ALBO e+ i mu-
-      //to jest jeszcze do sprawdzenia
-      if (!(!aelektorn.empty() &&  !mion.empty()  && elektorn.empty() && amion.empty()) || (aelektorn.empty() &&  mion.empty()  && !elektorn.empty() && !amion.empty() ) ) continue;
+      //chyba w końcu działa
+      if (aelektorn.size() == elektorn.size()) continue;
+      if (jet1.empty() || jet2.empty()) continue;
 
       /************************************************************************/
       //Rekonstruujemy Higgsa w zależności od procesu
@@ -168,7 +176,6 @@ void LHEF::Loop(char* output)
       *boost_vector = -(Higgs->BoostVector());
 
       /************************************************************************/
-
       //Pętla po wszystkich jetach i antyjetach
       for (int i = 0; i < jet1.size(); i++)
       {
@@ -185,6 +192,9 @@ void LHEF::Loop(char* output)
                               Particle_E[   jet2[j] ] );
 
             sum = temp1 + temp2;
+
+            //Zapisuję czteopęd wszystkich jetów
+            *jj += sum;
 
             //Histogram masy inwariantej dwóch jetów
             mjj->Fill(sum.M());
@@ -225,8 +235,6 @@ void LHEF::Loop(char* output)
       {
           for (int j = 0; j < lepton2.size(); j++)
           {
-              //if( Particle_PID[lepton1[i]] == -Particle_PID[lepton2[j]] ) continue;
-
               temp1.SetPxPyPzE( Particle_Px[  lepton1[i]  ],
                                 Particle_Py[  lepton1[i]  ],
                                 Particle_Pz[  lepton1[i]  ],
@@ -238,6 +246,9 @@ void LHEF::Loop(char* output)
                                 Particle_E[   lepton2[j]  ] );
 
               sum = temp1 + temp2;
+
+              //Zapamiętujemy czteropęd leptonów
+              *ll += sum;
 
               //Histogram masy inwariantnej dwóch leptonów -
               // e+ i mu- ALBO e- i mu+ - bo tylko te wybraliśmy
@@ -310,8 +321,44 @@ void LHEF::Loop(char* output)
       }
 
       /************************************************************************/
-      //Pętla po wszystkich mu- i vm~
+      //Pętla po wszystkich mu+ i vm
       //będziemy z tego odtwarzać W+
+      for (int i = 0; i < amion.size(); i++)
+      {
+          for (int j = 0; j < mneutrino.size(); j++)
+          {
+              temp1.SetPxPyPzE( Particle_Px[  amion[i]  ],
+                                Particle_Py[  amion[i]  ],
+                                Particle_Pz[  amion[i]  ],
+                                Particle_E[   amion[i]  ] );
+              temp2.SetPxPyPzE( Particle_Px[  mneutrino[j]  ],
+                                Particle_Py[  mneutrino[j]  ],
+                                Particle_Pz[  mneutrino[j]  ],
+                                Particle_E[   mneutrino[j]  ] );
+
+              sum = temp1 + temp2;
+
+              //W wektorze zapamiętujemy sumę czterowektorów e+ i ve czyli
+              //tak naprawdę czteropęd W+
+              W_p.push_back(sum);
+
+              /////////////////////////////////////////////////////////////////
+              //Boostujemy do ukladu spoczynkowego Higgsa
+              if (Higgs == 0) continue;
+
+              temp1.Boost(*boost_vector);
+              temp2.Boost(*boost_vector);
+
+              sum = temp1 + temp2;
+
+              //Zapamiętujemy boostowane czterowektory w wektorze
+              W_p_hf.push_back( sum );
+          }
+      }
+
+      /************************************************************************/
+      //Pętla po wszystkich mu- i vm~
+      //będziemy z tego odtwarzać W-
       for (int i = 0; i < mion.size(); i++)
       {
           for (int j = 0; j < amneutrino.size(); j++)
@@ -324,6 +371,42 @@ void LHEF::Loop(char* output)
                                 Particle_Py[  amneutrino[j] ],
                                 Particle_Pz[  amneutrino[j] ],
                                 Particle_E[   amneutrino[j] ] );
+
+              sum = temp1 + temp2;
+              //W wektorze zapamiętujemy sumę czterowektorów mu- i vm~ czyli
+              //tak naprawdę czteropęd W-
+              W_n.push_back(sum);
+
+              /////////////////////////////////////////////////////////////////
+              //Boostujemy do ukladu spoczynkowego Higgsa
+              if (Higgs == 0) continue;
+
+              temp1.Boost(*boost_vector);
+              temp2.Boost(*boost_vector);
+
+              sum = temp1 + temp2;
+
+              //Zapamiętujemy boostowane czterowektory w wektorze
+              W_n_hf.push_back( sum );
+
+          }
+      }
+
+      /************************************************************************/
+      //Pętla po wszystkich e- i ve~
+      //będziemy z tego odtwarzać W-
+      for (int i = 0; i < elektorn.size(); i++)
+      {
+          for (int j = 0; j < aeneutrino.size(); j++)
+          {
+              temp1.SetPxPyPzE( Particle_Px[  elektorn[i]       ],
+                                Particle_Py[  elektorn[i]       ],
+                                Particle_Pz[  elektorn[i]       ],
+                                Particle_E[   elektorn[i]       ] );
+              temp2.SetPxPyPzE( Particle_Px[  aeneutrino[j] ],
+                                Particle_Py[  aeneutrino[j] ],
+                                Particle_Pz[  aeneutrino[j] ],
+                                Particle_E[   aeneutrino[j] ] );
 
               sum = temp1 + temp2;
               //W wektorze zapamiętujemy sumę czterowektorów mu- i vm~ czyli
@@ -380,6 +463,7 @@ void LHEF::Loop(char* output)
                                 Particle_E[   aeneutrino[i] ] );
 
               neutrino_momentum += temp1;
+              Pdg_id->Fill( Particle_PID[aeneutrino[i]] );
         }
 
         for (int i = 0; i < mneutrino.size(); i++)
@@ -390,6 +474,7 @@ void LHEF::Loop(char* output)
                                 Particle_E[   mneutrino[i] ] );
 
               neutrino_momentum += temp1;
+              Pdg_id->Fill( Particle_PID[mneutrino[i]] );
         }
 
         for (int i = 0; i < eneutrino.size(); i++)
@@ -400,6 +485,7 @@ void LHEF::Loop(char* output)
                                 Particle_E[   eneutrino[i] ] );
 
               neutrino_momentum += temp1;
+              Pdg_id->Fill( Particle_PID[eneutrino[i]] );
         }
 
         for (int i = 0; i < amneutrino.size(); i++)
@@ -410,6 +496,7 @@ void LHEF::Loop(char* output)
                                 Particle_E[   amneutrino[i] ] );
 
               neutrino_momentum += temp1;
+              Pdg_id->Fill( Particle_PID[amneutrino[i]] );
         }
 
         nn_p->Fill(neutrino_momentum.Pt());
@@ -426,6 +513,7 @@ void LHEF::Loop(char* output)
                               Particle_E[   aelektorn[i] ] );
 
             final_momentum += temp1;
+            Pdg_id->Fill( Particle_PID[aelektorn[i]] );
       }
 
       for (int i = 0; i < elektorn.size(); i++)
@@ -436,6 +524,7 @@ void LHEF::Loop(char* output)
                               Particle_E[   elektorn[i] ] );
 
             final_momentum += temp1;
+            Pdg_id->Fill( Particle_PID[elektorn[i]] );
       }
 
       for (int i = 0; i < amion.size(); i++)
@@ -446,6 +535,7 @@ void LHEF::Loop(char* output)
                               Particle_E[   amion[i] ] );
 
             final_momentum += temp1;
+            Pdg_id->Fill( Particle_PID[amion[i]] );
       }
 
       for (int i = 0; i < mion.size(); i++)
@@ -456,6 +546,7 @@ void LHEF::Loop(char* output)
                               Particle_E[   mion[i] ] );
 
             final_momentum += temp1;
+            Pdg_id->Fill( Particle_PID[mion[i]] );
       }
 
       for (int i = 0; i < jet1.size(); i++)
@@ -466,6 +557,7 @@ void LHEF::Loop(char* output)
                               Particle_E[   jet1[i] ] );
 
             final_momentum += temp1;
+            Pdg_id->Fill( Particle_PID[jet1[i]] );
       }
 
       for (int i = 0; i < jet2.size(); i++)
@@ -476,126 +568,35 @@ void LHEF::Loop(char* output)
                               Particle_E[   jet2[i] ] );
 
             final_momentum += temp1;
+            Pdg_id->Fill( Particle_PID[jet2[i]] );
       }
 
-      momentum_loss->Fill(final_momentum.Pt());
+      non_nn_p->Fill(final_momentum.Pt());
 
       /************************************************************************/
-      //Pęd wszystkich cząstek (powinien się równać 0)
-      for (int i = 0; i < aelektorn.size(); i++)
-      {
-            temp1.SetPxPyPzE( Particle_Px[  aelektorn[i] ],
-                              Particle_Py[  aelektorn[i] ],
-                              Particle_Pz[  aelektorn[i] ],
-                              Particle_E[   aelektorn[i] ] );
+      //Pęd wszystkich cząstek (neutrina + rest)
+      all_momentum->Fill((final_momentum + neutrino_momentum).Pt());
 
-            end_momentum += temp1;
-            Pdg_id->Fill(Particle_PID[  aelektorn[i]  ]);
-      }
+      /************************************************************************/
+      //Obliczenie zetowej skladowej pędu neutrin
+      M_h = 126.0; M_vv = 30.0;
+      M_fix_2 = M_h * M_h - ll->E() * ll->E() - M_vv * M_vv + 2 * ll->Px() * (-(*ll + *jj)).Px() + 2 * ll->Py() * (-(*ll + *jj)).Py();
+      M_fix_4_ = M_fix_2 * M_fix_2 - 4 * ll->E() * ll->E() * M_vv * M_vv - 4 * ll->E() * ll->E() * (-(*ll + *jj)).Pt() * (-(*ll + *jj)).Pt();
 
-      for (int i = 0; i < elektorn.size(); i++)
-      {
-            temp1.SetPxPyPzE( Particle_Px[  elektorn[i] ],
-                              Particle_Py[  elektorn[i] ],
-                              Particle_Pz[  elektorn[i] ],
-                              Particle_E[   elektorn[i] ] );
+      if (M_fix_2 * M_fix_2 *ll->Pz() * ll->Pz() - M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E()) < 0) continue;
 
-            end_momentum += temp1;
-            Pdg_id->Fill(Particle_PID[  elektorn[i]  ]);
-      }
+      p_vv_z = (-(ll->Pz() * ll->Pz()) - sqrt(M_fix_2 * M_fix_2 *ll->Pz() * ll->Pz() - M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E())))
+      / (2 * (ll->Pz() * ll->Pz() - ll->E() * ll->E()));
 
-      for (int i = 0; i < amion.size(); i++)
-      {
-            temp1.SetPxPyPzE( Particle_Px[  amion[i] ],
-                              Particle_Py[  amion[i] ],
-                              Particle_Pz[  amion[i] ],
-                              Particle_E[   amion[i] ] );
+      p_vv_z_h->Fill(p_vv_z);
 
-            end_momentum += temp1;
-            Pdg_id->Fill(Particle_PID[  amion[i]  ]);
-      }
+      p_vv_z = (-(ll->Pz() * ll->Pz()) + sqrt(M_fix_2 * M_fix_2 *ll->Pz() * ll->Pz() - M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E())))
+      / (2 * (ll->Pz() * ll->Pz() - ll->E() * ll->E()));
 
-      for (int i = 0; i < mion.size(); i++)
-      {
-            temp1.SetPxPyPzE( Particle_Px[  mion[i] ],
-                              Particle_Py[  mion[i] ],
-                              Particle_Pz[  mion[i] ],
-                              Particle_E[   mion[i] ] );
-
-            end_momentum += temp1;
-            Pdg_id->Fill(Particle_PID[  mion[i]  ]);
-      }
-
-      for (int i = 0; i < jet1.size(); i++)
-      {
-            temp1.SetPxPyPzE( Particle_Px[  jet1[i] ],
-                              Particle_Py[  jet1[i] ],
-                              Particle_Pz[  jet1[i] ],
-                              Particle_E[   jet1[i] ] );
-
-            end_momentum += temp1;
-            Pdg_id->Fill(Particle_PID[  jet1[i]  ]);
-      }
-
-      for (int i = 0; i < jet2.size(); i++)
-      {
-            temp1.SetPxPyPzE( Particle_Px[  jet2[i] ],
-                              Particle_Py[  jet2[i] ],
-                              Particle_Pz[  jet2[i] ],
-                              Particle_E[   jet2[i] ] );
-
-            end_momentum += temp1;
-            Pdg_id->Fill(Particle_PID[  jet2[i]  ]);
-      }
-
-      for (int i = 0; i < aeneutrino.size(); i++)
-      {
-            temp1.SetPxPyPzE( Particle_Px[  aeneutrino[i] ],
-                              Particle_Py[  aeneutrino[i] ],
-                              Particle_Pz[  aeneutrino[i] ],
-                              Particle_E[   aeneutrino[i] ] );
-
-            end_momentum += temp1;
-            Pdg_id->Fill(Particle_PID[  aeneutrino[i]  ]);
-      }
-
-      for (int i = 0; i < mneutrino.size(); i++)
-      {
-            temp1.SetPxPyPzE( Particle_Px[  mneutrino[i] ],
-                              Particle_Py[  mneutrino[i] ],
-                              Particle_Pz[  mneutrino[i] ],
-                              Particle_E[   mneutrino[i] ] );
-
-            end_momentum += temp1;
-            Pdg_id->Fill(Particle_PID[  mneutrino[i]  ]);
-      }
-
-      for (int i = 0; i < eneutrino.size(); i++)
-      {
-            temp1.SetPxPyPzE( Particle_Px[  eneutrino[i] ],
-                              Particle_Py[  eneutrino[i] ],
-                              Particle_Pz[  eneutrino[i] ],
-                              Particle_E[   eneutrino[i] ] );
-
-            end_momentum += temp1;
-            Pdg_id->Fill(Particle_PID[  eneutrino[i]  ]);
-      }
-
-      for (int i = 0; i < amneutrino.size(); i++)
-      {
-            temp1.SetPxPyPzE( Particle_Px[  amneutrino[i] ],
-                              Particle_Py[  amneutrino[i] ],
-                              Particle_Pz[  amneutrino[i] ],
-                              Particle_E[   amneutrino[i] ] );
-
-            end_momentum += temp1;
-            Pdg_id->Fill(Particle_PID[  amneutrino[i]  ]);
-      }
-
-      all_momentum->Fill(end_momentum.Pt());
+      p_vv_z_h->Fill(p_vv_z);
    }
 
-   //Zapisywanie do pliki "Histogramy.root"
+   //Zapisywanie do pliki "output"
    TFile *f = new TFile(output, "RECREATE");
 
    mjj->Write();
@@ -621,10 +622,12 @@ void LHEF::Loop(char* output)
    mH->Write();
 
    nn_p->Write();
-   momentum_loss->Write();
+   non_nn_p->Write();
    all_momentum->Write();
 
    Pdg_id->Write();
+
+   p_vv_z_h->Write();
 
    f->Close();
 }
