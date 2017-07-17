@@ -28,6 +28,7 @@ void LHEF::Loop(char* output)
   TVector3 * boost_vector = new TVector3();
   TVector3 * ll1 = new TVector3();
   TVector3 * ll2 = new TVector3();
+  TVectorD weight(1);
 
   TH1F * mjj = new TH1F("mjj", "mjj", 50, 0., 1000.);
   TH1F * mll = new TH1F("mll", "mll", 50, 0., 300);
@@ -73,7 +74,7 @@ void LHEF::Loop(char* output)
    Long64_t nbytes = 0, nb = 0;
 
    //Pętla po wszystkich przypadkach
-   for (Long64_t jentry=0; jentry<nentries*1;jentry++)
+   for (Long64_t jentry=0; jentry<nentries;jentry++)
    {
      //Czyszczenie wszystkich wektorów
      Higgs->SetPxPyPzE(0,0,0,0); ll->SetPxPyPzE(0,0,0,0); jj->SetPxPyPzE(0,0,0,0);
@@ -83,18 +84,25 @@ void LHEF::Loop(char* output)
      W_p.clear(); W_n.clear(); W_p_hf.clear(); W_n_hf.clear();
 
       //Zegarek (jeśli działanie programu się przedłuża)
-      if ( jentry%1000 == 0 )
-      {
-        watch->Stop();
-        watch->Print();
-        std::cout << jentry << endl;
-        watch->Continue();
-      }
+      // if ( jentry%1000 == 0 )
+      // {
+      //   watch->Stop();
+      //   watch->Print();
+      //   std::cout << jentry << endl;
+      //   watch->Continue();
+      // }
 
       Long64_t ientry = LoadTree(jentry);
       if (ientry < 0) break;
       nb = fChain->GetEntry(jentry);   nbytes += nb;
       // if (Cut(ientry) < 0) continue;
+
+      if (jentry == 0)
+      {
+        cout << *Event_Weight << endl;
+        weight[0] = *Event_Weight;
+        cout << weight[0] << endl;
+      }
 
       /************************************************************************/
       //Pętla po wszystkich particlach w evencie
@@ -231,8 +239,6 @@ void LHEF::Loop(char* output)
 
             ///////////////////////////////////////////////////////////////////
             //Boostowanie do układu spoczynkowego Higgsa
-            if (Higgs == 0) continue;
-
             temp1.Boost(*boost_vector);
             temp2.Boost(*boost_vector);
 
@@ -285,8 +291,6 @@ void LHEF::Loop(char* output)
               if (i == 0) eta_l2->Fill(Particle_Eta[lepton2[j]]);
 
               //////////////////////////////////////////////////////////////////
-
-              if (Higgs == 0) continue;
               //Boostowanie do układu spoczynkowego Higgsa
               temp1.Boost(*boost_vector);
               temp2.Boost(*boost_vector);
@@ -322,8 +326,6 @@ void LHEF::Loop(char* output)
 
               /////////////////////////////////////////////////////////////////
               //Boostujemy do ukladu spoczynkowego Higgsa
-              if (Higgs == 0) continue;
-
               temp1.Boost(*boost_vector);
               temp2.Boost(*boost_vector);
 
@@ -358,8 +360,6 @@ void LHEF::Loop(char* output)
 
               /////////////////////////////////////////////////////////////////
               //Boostujemy do ukladu spoczynkowego Higgsa
-              if (Higgs == 0) continue;
-
               temp1.Boost(*boost_vector);
               temp2.Boost(*boost_vector);
 
@@ -393,8 +393,6 @@ void LHEF::Loop(char* output)
 
               /////////////////////////////////////////////////////////////////
               //Boostujemy do ukladu spoczynkowego Higgsa
-              if (Higgs == 0) continue;
-
               temp1.Boost(*boost_vector);
               temp2.Boost(*boost_vector);
 
@@ -413,10 +411,10 @@ void LHEF::Loop(char* output)
       {
           for (int j = 0; j < aeneutrino.size(); j++)
           {
-              temp1.SetPxPyPzE( Particle_Px[  elektorn[i]       ],
-                                Particle_Py[  elektorn[i]       ],
-                                Particle_Pz[  elektorn[i]       ],
-                                Particle_E[   elektorn[i]       ] );
+              temp1.SetPxPyPzE( Particle_Px[  elektorn[i]   ],
+                                Particle_Py[  elektorn[i]   ],
+                                Particle_Pz[  elektorn[i]   ],
+                                Particle_E[   elektorn[i]   ] );
               temp2.SetPxPyPzE( Particle_Px[  aeneutrino[j] ],
                                 Particle_Py[  aeneutrino[j] ],
                                 Particle_Pz[  aeneutrino[j] ],
@@ -429,8 +427,6 @@ void LHEF::Loop(char* output)
 
               /////////////////////////////////////////////////////////////////
               //Boostujemy do ukladu spoczynkowego Higgsa
-              if (Higgs == 0) continue;
-
               temp1.Boost(*boost_vector);
               temp2.Boost(*boost_vector);
 
@@ -596,29 +592,56 @@ void LHEF::Loop(char* output)
       /************************************************************************/
       //Obliczenie zetowej skladowej pędu neutrin
       M_h = 126.0; M_vv = 30.0;
-      M_fix_2 = (M_h * M_h) - (ll->M() * ll->M()) - (M_vv * M_vv) + (2 * ll->Px() * (-(*ll + *jj)).Px()) + (2 * ll->Py() * (-(*ll + *jj)).Py());
-      M_fix_4_ = (M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * M_vv * M_vv) - (4 * ll->E() * ll->E() * (-(*ll + *jj)).Pt() * (-(*ll + *jj)).Pt());
-      Delta = (M_fix_2 * M_fix_2 * ll->Pz() * ll->Pz()) - (M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E()));
+      M_fix_2 = (M_h * M_h) - (ll->M() * ll->M()) -
+                (M_vv * M_vv) + (2 * ll->Px() * (-(*ll + *jj)).Px()) +
+                (2 * ll->Py() * (-(*ll + *jj)).Py());
+      M_fix_4_ =  (M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * M_vv * M_vv) -
+                  (4 * ll->E() * ll->E() * (-(*ll + *jj)).Pt() * (-(*ll + *jj)).Pt());
+      Delta = (M_fix_2 * M_fix_2 * ll->Pz() * ll->Pz()) -
+              (M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E()));
 
       delta->Fill(Delta);
 
+      /******************************/
+
       if (Delta >= 0 )
       {
-        p_vv_z1 = ((-(ll->Pz()) * M_fix_2) + sqrt(Delta)) / ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
-        p_vv_z2 = ((-(ll->Pz()) * M_fix_2) - sqrt(Delta)) / ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
+        p_vv_z1 = ((-(ll->Pz()) * M_fix_2) + sqrt(Delta)) /
+                  ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
+        p_vv_z2 = ((-(ll->Pz()) * M_fix_2) - sqrt(Delta)) /
+                  ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
 
         Double_t pll1, pll2, cosll1, cosll2;
 
-        pll1 = ((-M_fix_2 * p_vv_z1) + sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) - (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) / (2 * p_vv_z1 * p_vv_z1);
-        pll2 = ((-M_fix_2 * p_vv_z1) - sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) - (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) / (2 * p_vv_z1 * p_vv_z1);
+        pll1 =  ((-M_fix_2 * p_vv_z1) +
+                sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) -
+                (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) -
+                (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) /
+                (2 * p_vv_z1 * p_vv_z1);
+
+        pll2 =  ((-M_fix_2 * p_vv_z1) -
+                sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) -
+                (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) -
+                (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) /
+                (2 * p_vv_z1 * p_vv_z1);
+
+        //cout << pll1 - ll->Pz() << "\t" << pll2 - ll->Pz() << endl;
 
         ll1->SetXYZ(ll->Px(), ll->Py(), pll1);
         ll2->SetXYZ(ll->Px(), ll->Py(), pll2);
 
         cosll1 = abs(TMath::Sin((ll1->Cross(*ll2)).Angle(TVector3(0,0,1))));
 
-        pll1 = ((-M_fix_2 * p_vv_z2) + sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) - (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) / (2 * p_vv_z2 * p_vv_z2);
-        pll2 = ((-M_fix_2 * p_vv_z2) - sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) - (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) / (2 * p_vv_z2 * p_vv_z2);
+        pll1 =  ((-M_fix_2 * p_vv_z2) +
+                sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) -
+                (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) -
+                (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) /
+                (2 * p_vv_z2 * p_vv_z2);
+        pll2 =  ((-M_fix_2 * p_vv_z2) -
+                sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) -
+                (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) -
+                (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) /
+                (2 * p_vv_z2 * p_vv_z2);
 
         ll1->SetXYZ(ll->Px(), ll->Py(), pll1);
         ll2->SetXYZ(ll->Px(), ll->Py(), pll2);
@@ -640,12 +663,18 @@ void LHEF::Loop(char* output)
           p_vv_z_h_c_2->Fill(p_vv_z2);
       }
 
+      /********************************/
+
       else
       {
         M_vv = 0;
-        M_fix_2 = (M_h * M_h) - (ll->M2() * ll->M2()) - (M_vv * M_vv) + (2 * ll->Px() * (-(*ll + *jj)).Px()) + (2 * ll->Py() * (-(*ll + *jj)).Py());
-        M_fix_4_ = (M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * M_vv * M_vv) - (4 * ll->E() * ll->E() * (-(*ll + *jj)).Pt() * (-(*ll + *jj)).Pt());
-        Delta = (M_fix_2 * M_fix_2 * ll->Pz() * ll->Pz()) - (M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E()));
+        M_fix_2 = (M_h * M_h) - (ll->M2() * ll->M2()) -
+                  (M_vv * M_vv) + (2 * ll->Px() * (-(*ll + *jj)).Px()) +
+                  (2 * ll->Py() * (-(*ll + *jj)).Py());
+        M_fix_4_ =  (M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * M_vv * M_vv) -
+                    (4 * ll->E() * ll->E() * (-(*ll + *jj)).Pt() * (-(*ll + *jj)).Pt());
+        Delta = (M_fix_2 * M_fix_2 * ll->Pz() * ll->Pz()) -
+                (M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E()));
 
         licznik1++;
 
@@ -655,26 +684,44 @@ void LHEF::Loop(char* output)
           continue;
         }
 
-        p_vv_z1 = ((-(ll->Pz()) * M_fix_2) + sqrt(Delta)) / ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
-        p_vv_z2 = ((-(ll->Pz()) * M_fix_2) - sqrt(Delta)) / ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
+        p_vv_z1 = ((-(ll->Pz()) * M_fix_2) + sqrt(Delta)) /
+                  ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
+        p_vv_z2 = ((-(ll->Pz()) * M_fix_2) - sqrt(Delta)) /
+                  ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
 
         Double_t pll1, pll2, cosll1, cosll2;
 
-        pll1 = ((-M_fix_2 * p_vv_z1) + sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) - (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) / (2 * p_vv_z1 * p_vv_z1);
-        pll2 = ((-M_fix_2 * p_vv_z1) - sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) - (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) / (2 * p_vv_z1 * p_vv_z1);
+        pll1 =  ((-M_fix_2 * p_vv_z1) +
+                sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) -
+                (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) -
+                (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) /
+                (2 * p_vv_z1 * p_vv_z1);
+        pll2 =  ((-M_fix_2 * p_vv_z1) -
+                sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) -
+                (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) -
+                (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) /
+                (2 * p_vv_z1 * p_vv_z1);
 
         ll1->SetXYZ(ll->Px(), ll->Py(), pll1);
         ll2->SetXYZ(ll->Px(), ll->Py(), pll2);
 
-        cosll1 = abs(TMath::Cos((ll1->Cross(*ll2)).Angle(TVector3(0,0,1))));
+        cosll1 = abs(TMath::Sin((ll1->Cross(*ll2)).Angle(TVector3(0,0,1))));
 
-        pll1 = ((-M_fix_2 * p_vv_z2) + sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) - (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) / (2 * p_vv_z2 * p_vv_z2);
-        pll2 = ((-M_fix_2 * p_vv_z2) - sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) - (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) / (2 * p_vv_z2 * p_vv_z2);
+        pll1 =  ((-M_fix_2 * p_vv_z2) +
+                sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) -
+                (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) -
+                (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) /
+                (2 * p_vv_z2 * p_vv_z2);
+        pll2 =  ((-M_fix_2 * p_vv_z2) -
+                sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) -
+                (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) -
+                (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) /
+                (2 * p_vv_z2 * p_vv_z2);
 
         ll1->SetXYZ(ll->Px(), ll->Py(), pll1);
         ll2->SetXYZ(ll->Px(), ll->Py(), pll2);
 
-        cosll2 = abs(TMath::Cos((ll1->Cross(*ll2)).Angle(TVector3(0,0,1))));
+        cosll2 = abs(TMath::Sin((ll1->Cross(*ll2)).Angle(TVector3(0,0,1))));
 
         if (cosll1 < cosll2)
           p_vv_z_h_c_1->Fill(p_vv_z1);
@@ -720,20 +767,147 @@ void LHEF::Loop(char* output)
    mH->Write();
 
    nn_p->Write();
-   non_nn_p->Write();
-   all_momentum->Write();
+   //non_nn_p->Write();
+   //all_momentum->Write();
 
-   Pdg_id->Write();
-   delta->Write();
+   //Pdg_id->Write();
+   //delta->Write();
 
    M_vv_h->Write();
    p_vv_z_h_c_1->Write();
    p_vv_z_h_c_2->Write();
    //p_vv_z_h_c->Write();
    p_vv_z_h->Write();
+   weight.Write("weight");
 
    f->Close();
 }
+
+void ReadLine(char *namefile, int setlog = 0)
+{
+	ifstream input;
+	input.open(namefile);
+	string line, name;
+	double norm;
+	vector<string> alllines;
+	vector<string> legendtitles;
+	vector<TFile *> files;
+	TObject *obj;
+	TH1F *h;
+	TKey *key;
+	vector<TCanvas *> cvec;
+	vector<TIter> nexts;
+	TVectorT<double> weight;
+	vector<double> weights;
+	weight.ResizeTo(1);
+	int num1 = 0;
+	double scale = 1, max = 0;
+
+	while (getline(input, line))
+	{
+		if (line.front() == '#')
+		{
+			cout << line << endl;
+			continue;
+		}
+
+		alllines.push_back(line);
+		// line.resize(line.size() - 5);
+		cout << line << endl;
+		legendtitles.push_back(line);
+		num1++;
+	}
+
+	cout << alllines.size() << endl;
+
+	if (num1 % 3 != 0)
+	{
+		cout << "Fatal error - invalid parameter file!" << endl;
+		cout << "Please read first lines for proper form" << endl;
+	}
+
+	cout << num1 << endl;
+
+	vector<TH1F *> objs[200];
+
+	for (int i = 0; i < alllines.size(); i++)
+	{
+		// cout << alllines.at(i) << endl;
+		name = alllines.at(i);
+		files.push_back(new TFile(name.c_str(), "READ"));
+		nexts.push_back(TIter(files.at(i)->GetListOfKeys()));
+		while ((key = (TKey *)nexts.at(i)()))
+		{
+			obj = files.at(i)->Get(key->GetName());
+			if (obj->InheritsFrom("TH1"))
+				objs[i].push_back((TH1F *)obj);
+			if (obj->InheritsFrom("TVectorD"))
+			{
+				cout << "Doby found a weight!" << endl;
+				cout << obj << endl;
+				obj->Print();
+				weight = *(TVectorD *)obj;
+				//cout << weight[0] << endl;
+				weights.push_back(weight[0]);
+			}
+			// cout << " found object: " << obj->GetName() << endl;
+		}
+	}
+	for (int i = 0; i < objs[0].size(); i++)
+	{
+		max = 0;
+		if (i % 4 == 0)
+		{
+			cvec.push_back(new TCanvas(Form("c%d", i + 2), "just a canvas", 1000, 750));
+			cvec.back()->Divide(2, 2);
+			gStyle->SetOptStat(0);
+		}
+		cvec.back()->cd(i % 4 + 1);
+		for (int j = 0; j < num1; j++)
+		{
+			// cout << objs[j].at(i)->Integral() << endl;
+			objs[j].at(i)->ComputeIntegral();
+			scale = weights.at(j) / (objs[j].at(i)->Integral());
+			objs[j].at(i)->Scale((Double_t)scale, "width");
+			// cout << scale << endl;
+			// if (objs[j].at(i)->Integral() != 0)
+			// objs[j].at(i)->Scale(1. / objs[j].at(i)->Integral());
+			if (objs[j].at(i)->GetMaximum() > max)
+				max = objs[j].at(i)->GetMaximum();
+			// if (objs[j].at(i)->)
+		}
+
+		TLegend *legend = new TLegend(0.9, 0.7, 0.52, 0.9);
+		legend->SetHeader("Procesy");
+
+    THStack *hs = new THStack("hs","Stacked");
+
+		for (int j = 0; j < num1; j++)
+		{
+			if (setlog == 1)
+				gPad->SetLogy();
+			h = objs[j].at(i);
+			legend->AddEntry(h, legendtitles.at(j).c_str(), "l");
+			// cout << objs[j].at(i) << endl;
+			objs[j].at(i)->SetMaximum(1.05 * max);
+			// cout << max << endl;
+			objs[j].at(i)->SetLineColor(j + 2);
+			objs[j].at(i)->SetFillColor(j + 2);
+			// objs[j].at(i)->SetLineStyle(j + 1);
+			if (j == 0)
+				hs->Add(objs[j].at(i));
+			else
+				hs->Add(objs[j].at(i));
+			// if (i % 4 == 0 && j == num1 - 1)
+			// cvec.back()->SaveAs(Form("picture%d.jpg", i / 4));
+		}
+
+    hs->Draw("hist");
+    legend->Draw();
+    //delete hs;
+	}
+}
+
 
 void LHEF(char* input, char* output)
 {
