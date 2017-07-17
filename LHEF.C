@@ -10,8 +10,9 @@ void LHEF::Loop(char* output)
   TStopwatch * watch = new TStopwatch();
 
   Double_t phi;
-  Double_t M_h, M_vv, M_fix_2, M_fix_4_, p_vv_z;
+  Double_t M_h, M_vv, M_fix_2, M_fix_4_, p_vv_z1, p_vv_z2, Delta;
 
+  Int_t licznik1 = 0, licznik2 = 0 ;
 
   std::vector<Int_t> elektorn, mion, eneutrino, mneutrino;
   std::vector<Int_t> aelektorn, amion, aeneutrino, amneutrino;
@@ -25,9 +26,11 @@ void LHEF::Loop(char* output)
   TLorentzVector *jj = new TLorentzVector();
   TLorentzVector *Higgs = new TLorentzVector();
   TVector3 * boost_vector = new TVector3();
+  TVector3 * ll1 = new TVector3();
+  TVector3 * ll2 = new TVector3();
 
   TH1F * mjj = new TH1F("mjj", "mjj", 50, 0., 1000.);
-  TH1F * mll = new TH1F("mll", "mll", 50, 0., 1000);
+  TH1F * mll = new TH1F("mll", "mll", 50, 0., 300);
 
   TH1F * eta_j1  = new TH1F("eta_j1", "eta_j1", 50, -5., 5.);
   TH1F * eta_j2 = new TH1F("eta_j2", "eta_j2", 50, -5., 5.);
@@ -56,9 +59,13 @@ void LHEF::Loop(char* output)
   TH1F * non_nn_p = new TH1F("non_nn_p", "non-neutrinos_momentum", 50, 0., 400);
   TH1F * all_momentum = new TH1F("all_momentum", "all_momentum", 50, 0., 400);
 
-  TH1F * Pdg_id = new TH1F("Pdg_id", "Pdg_id", 30, -15., 15);
+  TH1F * Pdg_id = new TH1F("Pdg_id", "Pdg_id", 50, -25., 25);
+  TH1F * delta = new TH1F("delta", "delta", 100, -1e12, 1e12);
 
-  TH1F * p_vv_z_h = new TH1F("p_vv_z", "p_vv_z", 50, -1000., 1000);
+  TH1F * M_vv_h = new TH1F("M_vv_h", "M_vv", 50, 0., 600);
+  TH1F * p_vv_z_h_c_1 = new TH1F("p_vv_z_c_1", "p_vv_z_calculated_|psi_vv_z|", 100, -2000., 2000);
+  TH1F * p_vv_z_h_c_2 = new TH1F("p_vv_z_c_2", "p_vv_z_calculated_|p_vv_z|", 100, -2000., 2000);
+  TH1F * p_vv_z_h = new TH1F("p_vv_z", "p_vv_z", 100, -2000., 2000);
 
   if (fChain == 0) return;
 
@@ -97,8 +104,13 @@ void LHEF::Loop(char* output)
         if (Particle_Status[i] != 1) continue;
 
         //W jet1 trzymamy kwarki...
-        if (Particle_PID[i] >= 1 && Particle_PID[i] <= 8)
-          jet1.push_back(i);
+        if ((Particle_PID[i] >= 1 && Particle_PID[i] <= 8) || Particle_PID[i] == 21 )
+        {
+          if (jet1.empty()) jet1.push_back(i);
+          else jet2.push_back(i);
+
+          //jet1.push_back(i);
+        }
 
         //... a w jet2 antykwarki
         else if (Particle_PID[i] >= -8 && Particle_PID[i] <= -1)
@@ -153,7 +165,7 @@ void LHEF::Loop(char* output)
       //czyli na wyjściu jest e- i mu+ ALBO e+ i mu-
       //chyba w końcu działa
       if (aelektorn.size() == elektorn.size()) continue;
-      if (jet1.empty() || jet2.empty()) continue;
+      if (jet1.size() != jet2.size()) continue;
 
       /************************************************************************/
       //Rekonstruujemy Higgsa w zależności od procesu
@@ -177,6 +189,8 @@ void LHEF::Loop(char* output)
 
       /************************************************************************/
       //Pętla po wszystkich jetach i antyjetach
+      //std::cout << jet1.size() << " " << jet2.size() << endl;
+
       for (int i = 0; i < jet1.size(); i++)
       {
           for (int j = 0; j < jet2.size(); j++)
@@ -500,6 +514,8 @@ void LHEF::Loop(char* output)
         }
 
         nn_p->Fill(neutrino_momentum.Pt());
+        p_vv_z_h->Fill(neutrino_momentum.Pz());
+        M_vv_h->Fill(neutrino_momentum.M());
 
       /************************************************************************/
       //Pęd poprzeczny wszystkich mozliwych do detekcji czastek
@@ -580,21 +596,103 @@ void LHEF::Loop(char* output)
       /************************************************************************/
       //Obliczenie zetowej skladowej pędu neutrin
       M_h = 126.0; M_vv = 30.0;
-      M_fix_2 = M_h * M_h - ll->E() * ll->E() - M_vv * M_vv + 2 * ll->Px() * (-(*ll + *jj)).Px() + 2 * ll->Py() * (-(*ll + *jj)).Py();
-      M_fix_4_ = M_fix_2 * M_fix_2 - 4 * ll->E() * ll->E() * M_vv * M_vv - 4 * ll->E() * ll->E() * (-(*ll + *jj)).Pt() * (-(*ll + *jj)).Pt();
+      M_fix_2 = (M_h * M_h) - (ll->M() * ll->M()) - (M_vv * M_vv) + (2 * ll->Px() * (-(*ll + *jj)).Px()) + (2 * ll->Py() * (-(*ll + *jj)).Py());
+      M_fix_4_ = (M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * M_vv * M_vv) - (4 * ll->E() * ll->E() * (-(*ll + *jj)).Pt() * (-(*ll + *jj)).Pt());
+      Delta = (M_fix_2 * M_fix_2 * ll->Pz() * ll->Pz()) - (M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E()));
 
-      if (M_fix_2 * M_fix_2 *ll->Pz() * ll->Pz() - M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E()) < 0) continue;
+      delta->Fill(Delta);
 
-      p_vv_z = (-(ll->Pz() * ll->Pz()) - sqrt(M_fix_2 * M_fix_2 *ll->Pz() * ll->Pz() - M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E())))
-      / (2 * (ll->Pz() * ll->Pz() - ll->E() * ll->E()));
+      if (Delta >= 0 )
+      {
+        p_vv_z1 = ((-(ll->Pz()) * M_fix_2) + sqrt(Delta)) / ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
+        p_vv_z2 = ((-(ll->Pz()) * M_fix_2) - sqrt(Delta)) / ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
 
-      p_vv_z_h->Fill(p_vv_z);
+        Double_t pll1, pll2, cosll1, cosll2;
 
-      p_vv_z = (-(ll->Pz() * ll->Pz()) + sqrt(M_fix_2 * M_fix_2 *ll->Pz() * ll->Pz() - M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E())))
-      / (2 * (ll->Pz() * ll->Pz() - ll->E() * ll->E()));
+        pll1 = ((-M_fix_2 * p_vv_z1) + sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) - (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) / (2 * p_vv_z1 * p_vv_z1);
+        pll2 = ((-M_fix_2 * p_vv_z1) - sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) - (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) / (2 * p_vv_z1 * p_vv_z1);
 
-      p_vv_z_h->Fill(p_vv_z);
+        ll1->SetXYZ(ll->Px(), ll->Py(), pll1);
+        ll2->SetXYZ(ll->Px(), ll->Py(), pll2);
+
+        cosll1 = abs(TMath::Sin((ll1->Cross(*ll2)).Angle(TVector3(0,0,1))));
+
+        pll1 = ((-M_fix_2 * p_vv_z2) + sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) - (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) / (2 * p_vv_z2 * p_vv_z2);
+        pll2 = ((-M_fix_2 * p_vv_z2) - sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) - (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) / (2 * p_vv_z2 * p_vv_z2);
+
+        ll1->SetXYZ(ll->Px(), ll->Py(), pll1);
+        ll2->SetXYZ(ll->Px(), ll->Py(), pll2);
+
+        cosll2 = abs(TMath::Sin((ll1->Cross(*ll2)).Angle(TVector3(0,0,1))));
+
+        if (cosll1 < cosll2)
+          p_vv_z_h_c_1->Fill(p_vv_z1);
+
+        else
+          p_vv_z_h_c_1->Fill(p_vv_z2);
+
+        ///////////////////////////////////////////////////////////////////////
+
+        if (abs(p_vv_z1) < abs(p_vv_z2))
+          p_vv_z_h_c_2->Fill(p_vv_z1);
+
+        else
+          p_vv_z_h_c_2->Fill(p_vv_z2);
+      }
+
+      else
+      {
+        M_vv = 0;
+        M_fix_2 = (M_h * M_h) - (ll->M2() * ll->M2()) - (M_vv * M_vv) + (2 * ll->Px() * (-(*ll + *jj)).Px()) + (2 * ll->Py() * (-(*ll + *jj)).Py());
+        M_fix_4_ = (M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * M_vv * M_vv) - (4 * ll->E() * ll->E() * (-(*ll + *jj)).Pt() * (-(*ll + *jj)).Pt());
+        Delta = (M_fix_2 * M_fix_2 * ll->Pz() * ll->Pz()) - (M_fix_4_ * (ll->Pz() * ll->Pz() - ll->E() * ll->E()));
+
+        licznik1++;
+
+        if (Delta < 0 )
+        {
+          licznik2++;
+          continue;
+        }
+
+        p_vv_z1 = ((-(ll->Pz()) * M_fix_2) + sqrt(Delta)) / ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
+        p_vv_z2 = ((-(ll->Pz()) * M_fix_2) - sqrt(Delta)) / ((2 * (ll->Pz() * ll->Pz()) - (ll->E() * ll->E())));
+
+        Double_t pll1, pll2, cosll1, cosll2;
+
+        pll1 = ((-M_fix_2 * p_vv_z1) + sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) - (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) / (2 * p_vv_z1 * p_vv_z1);
+        pll2 = ((-M_fix_2 * p_vv_z1) - sqrt((M_fix_2 * M_fix_2 * p_vv_z1 * p_vv_z1) - (p_vv_z1 * p_vv_z1) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z1 * p_vv_z1)))) / (2 * p_vv_z1 * p_vv_z1);
+
+        ll1->SetXYZ(ll->Px(), ll->Py(), pll1);
+        ll2->SetXYZ(ll->Px(), ll->Py(), pll2);
+
+        cosll1 = abs(TMath::Cos((ll1->Cross(*ll2)).Angle(TVector3(0,0,1))));
+
+        pll1 = ((-M_fix_2 * p_vv_z2) + sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) - (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) / (2 * p_vv_z2 * p_vv_z2);
+        pll2 = ((-M_fix_2 * p_vv_z2) - sqrt((M_fix_2 * M_fix_2 * p_vv_z2 * p_vv_z2) - (p_vv_z2 * p_vv_z2) * ((M_fix_2 * M_fix_2) - (4 * ll->E() * ll->E() * p_vv_z2 * p_vv_z2)))) / (2 * p_vv_z2 * p_vv_z2);
+
+        ll1->SetXYZ(ll->Px(), ll->Py(), pll1);
+        ll2->SetXYZ(ll->Px(), ll->Py(), pll2);
+
+        cosll2 = abs(TMath::Cos((ll1->Cross(*ll2)).Angle(TVector3(0,0,1))));
+
+        if (cosll1 < cosll2)
+          p_vv_z_h_c_1->Fill(p_vv_z1);
+
+        else
+          p_vv_z_h_c_1->Fill(p_vv_z2);
+
+        ///////////////////////////////////////////////////////////////////////
+
+        if (abs(p_vv_z1) < abs(p_vv_z2))
+          p_vv_z_h_c_2->Fill(p_vv_z1);
+
+        else
+          p_vv_z_h_c_2->Fill(p_vv_z2);
+      }
    }
+
+   cout << "Delta < 0 - 1 raz  " << licznik1 << endl << "Delta < 0 - 2 razy  " << licznik2 << endl;
 
    //Zapisywanie do pliki "output"
    TFile *f = new TFile(output, "RECREATE");
@@ -626,7 +724,12 @@ void LHEF::Loop(char* output)
    all_momentum->Write();
 
    Pdg_id->Write();
+   delta->Write();
 
+   M_vv_h->Write();
+   p_vv_z_h_c_1->Write();
+   p_vv_z_h_c_2->Write();
+   //p_vv_z_h_c->Write();
    p_vv_z_h->Write();
 
    f->Close();

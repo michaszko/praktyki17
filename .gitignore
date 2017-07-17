@@ -1,3 +1,4 @@
-unweighted_events.root
-Histogramy.root
 *.root
+*.jpg
+*.eps
+*.out
